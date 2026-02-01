@@ -1,4 +1,4 @@
-Classic Outlook VBA code to BCC the Sender on all sent mail unless they are excluded
+Classic Outlook VBA code to BCC the Sender with excluaions.
 
 RE: https://www.reddit.com/r/Outlook/comments/1qsa71g/mettre_automatiquement_en_bcc_cci_la_boite_mail/
 

@@ -1,11 +1,16 @@
 ' =====================================================================
-' BCC the Sender on all mail unless they are excluded.
-' Version: 2026-01-31_200432473
+' BCC Sender with exclusions
+' Version: 2026-02-01_080436918
+' https://github.com/Hornblower409/Outlook-VBA-BCC-Sender-with-exclusions
 ' RE: https://www.reddit.com/r/Outlook/comments/1qsa71g/mettre_automatiquement_en_bcc_cci_la_boite_mail/
 ' Must be in ThisOutlookSession because of the ItemSend event hook.
 ' General Help with Outlook VBA: https://www.slipstick.com/developer/how-to-use-outlooks-vba-editor/
 '
 Private Sub Application_ItemSend(ByVal Item As Object, Cancel As Boolean)
+
+    '   MAPI Property PR_SMTP_ADDRESS (PidTagSmtpAddress)
+    '
+    Const PR_SMTP_ADDRESS As String = "http://schemas.microsoft.com/mapi/proptag/0x39FE001E"
 
     '   If Not a MailItem - done
     '
@@ -15,7 +20,7 @@ Private Sub Application_ItemSend(ByVal Item As Object, Cancel As Boolean)
     '
     Dim Mail As Outlook.MailItem
     Set Mail = Item
-    
+
     '   Add the Sender as a BCC
     '
     Dim BCCRecipient As Outlook.Recipient
@@ -31,36 +36,73 @@ Private Sub Application_ItemSend(ByVal Item As Object, Cancel As Boolean)
         Cancel = True
         Exit Sub
     End If
-    
+
     '   Get the Sender's SMTP Address
     '
     Dim AdrEntry As Outlook.AddressEntry
     Set AdrEntry = BCCRecipient.AddressEntry
-    
-    Dim SMTPAdr As String
-    SMTPAdr = AdrEntry.Address
-    
+
+    Dim SenderSMTP As String
+    SenderSMTP = AdrEntry.Address
+
     Dim ExchUser As Outlook.ExchangeUser
     If AdrEntry.Type = "EX" Then
         Set ExchUser = AdrEntry.GetExchangeUser
-        SMTPAdr = ExchUser.PrimarySmtpAddress
+        SenderSMTP = ExchUser.PrimarySmtpAddress
     End If
-    
-    SMTPAdr = LCase(SMTPAdr)
-    
-    '   If we do not want to BCC this SMTP - Remove it
+
+    '   If Sender is Excluded - Remove the BCC & Done
     '
-    Select Case SMTPAdr
-    
-        '   SMTP email addresses to be excluded must be all lower case
+    Select Case LCase(SenderSMTP)
+
+        '   SMTP Sender email addresses to exclude
+        '   (Must be all lower case)
         '
         Case "smtpexclude01@domain.com", "smtpexclude02@domain.com"
             Mail.Recipients.Remove BCCRecipient.Index
-            
+            Exit Sub
+
         Case Else
             '   Continue
-            
+
     End Select
     
+    '   If Any Recipient is Excluded - Remove the BCC & Done
+    '
+    Dim Recipients As Outlook.Recipients
+    Set Recipients = Mail.Recipients
+    Dim Recipient As Outlook.Recipient
+    Dim RecipientSMTP As String
+    Dim PropAccess As Outlook.PropertyAccessor
+    
+    For Each Recipient In Recipients: Do
+    
+        '   Get the Recipient SMTP
+        '   If it doesn't have one (e.g. Distribution List) - Skip it
+        '
+        Set PropAccess = Recipient.PropertyAccessor
+        Dim ErrorNumber As Long
+        On Error Resume Next
+            RecipientSMTP = PropAccess.GetProperty(PR_SMTP_ADDRESS)
+            ErrorNumber = Err.Number
+        On Error GoTo 0
+        If ErrorNumber <> 0 Then Exit Do ' Continue with Next Recipient
+        
+        Select Case LCase(RecipientSMTP)
+        
+            '   SMTP Recipient email addresses to exclude
+            '   (Must be all lower case)
+            '
+            Case "recipientexclude01@domain.com", "recipientexclude02@domain.com"
+                Mail.Recipients.Remove BCCRecipient.Index
+                Exit Sub
+
+            Case Else
+                '   Continue
+        
+        End Select
+    
+    Loop While False: Next Recipient
+
 End Sub
 ' =====================================================================
